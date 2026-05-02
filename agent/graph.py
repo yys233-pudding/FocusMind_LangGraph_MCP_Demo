@@ -1,93 +1,110 @@
+import asyncio
 import json
-import os
-from dotenv import load_dotenv
-from typing import TypedDict
-from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+import os
+from dotenv import load_dotenv
 
 load_dotenv()
 
-class AgentState(TypedDict):
-    data: dict
-    decision: dict
-
+# ======================
+# LLM 初始化
+# ======================
 llm = ChatOpenAI(
     model="minimax-m2.7",
     api_key=os.getenv("MINIMAX_API_KEY"),
     base_url="https://api.minimax.chat/v1",
-    temperature=0.1
+    temperature=0.1,
+    timeout=10
 )
 
-async def judge_node(state: AgentState):
-    data = state["data"]
-    
-    # 获取当前使用时长，用于兜底逻辑判断
-    current_duration = data.get("today_usage_seconds", 0) 
+# ======================
+# MCP 客户端调用逻辑
+# ======================
+async def call_mcp_tool(tool_name: str, arguments: dict = None) -> dict:
+    """
+    调用 MCP 注册的工具
+    :param tool_name: 工具名
+    :param arguments: 工具入参
+    :return: 工具返回结果
+    """
+    async with ClientSession(sse_client("http://127.0.0.1:8765")) as session:
+        # 调用工具
+        result = await session.call_tool(
+            tool_name=tool_name,
+            arguments=arguments or {},
+            tool_call_id=f"{tool_name}-{asyncio.get_event_loop().time()}"
+        )
 
-    # 1. 修改 Prompt 指令，让 AI 知道现在的规则是 30 秒
-    prompt = f"""
-你是健康助手。根据用户信息判断是否提醒。
+        # 解析结果
+        if result.tool_result.status == "success":
+            return json.loads(result.tool_result.content)
+        else:
+            raise Exception(f"MCP 工具调用失败：{result.tool_result.error.message}")
 
-用户数据：
-{json.dumps(data, ensure_ascii=False, indent=2)}
-
-规则：
-1. 娱乐应用 + 开心表情 → 提醒
-2. 任何应用使用超过 30 秒 → 提醒  <-- [已修改：从5分钟缩短至30秒]
-3. 其他情况不提醒
-
-请只返回JSON，不要加任何其他文字，例子：
-{{"alert":false,"msg":""}}
-"""
-
-    try:
-        response = llm.invoke([HumanMessage(content=prompt)])
-        content = response.content.strip()
-
-        # 超强清洗！解决 JSON 报错
-        content = content.replace("```json", "").replace("```", "").strip()
-        content = content.split("{")[-1]
-        content = content.split("}")[0]
-        content = "{" + content + "}"
-
-        state["decision"] = json.loads(content)
-    except Exception as e:
-        print(f"AI调用失败: {e}")
-        
-        # 2. 修改“本地兜底规则”，确保 AI 挂掉时逻辑依然是 30 秒[cite: 5]
-        is_happy = data.get("emotion") == "happy"
-        
-        # 直接通过数值判断是否超过 30 秒[cite: 5]
-        too_long = current_duration > 30 
-        
-        # 只要开心或者超过30秒就提醒 (用于测试)
-        alert = is_happy or too_long
-        state["decision"] = {"alert": alert, "msg": f"你已经使用了 {current_duration} 秒，该休息一下啦！"}
-
-    return state
-
-async def alert_node(state: AgentState):
-    decision = state.get("decision", {})
-    if decision.get("alert"):
-        msg = decision.get("msg", "休息一下吧！")
+async def llm_decision_workflow():
+    """LLM 驱动的完整决策流程：调用工具 → 分析结果 → 生成提醒"""
+    while True:
         try:
-            async with sse_client("http://localhost:8000/sse") as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    await session.call_tool("trigger_alert", {"message": msg})
-            print(f"✅ 提醒成功: {msg}")
+            # 1. 调用 MCP 工具获取用户状态
+            user_state = await call_mcp_tool("get_user_usage_state")
+            print(f"\n📊 获取用户状态：{json.dumps(user_state, ensure_ascii=False)}")
+
+            # 2. 调用 MCP 工具判断是否需要提醒（也可让 LLM 直接决策）
+            judge_result = await call_mcp_tool(
+                "judge_rest_alert",
+                arguments={
+                    "current_app": user_state["current_app"],
+                    "duration": user_state["today_usage_seconds"],
+                    "emotion": user_state["emotion"],
+                    "is_entertainment": user_state["is_entertainment"]
+                }
+            )
+            print(f"🤖 提醒判断结果：{json.dumps(judge_result, ensure_ascii=False)}")
+
+            # 3. （可选）让 LLM 优化提醒文案
+            if judge_result["alert"]:
+                prompt = f"""
+                你是用户体验优化助手，请根据以下信息优化休息提醒文案：
+                - 当前应用：{user_state['current_app']}
+                - 使用时长：{user_state['today_usage_seconds']}秒
+                - 用户情绪：{user_state['emotion']}
+                - 原始文案：{judge_result['msg']}
+                
+                要求：语气亲切，适配用户情绪，不超过50字。
+                """
+                llm_response = llm.invoke([HumanMessage(content=prompt)])
+                optimized_msg = llm_response.content.strip()
+                judge_result["msg"] = optimized_msg
+                print(f"✨ LLM 优化后文案：{optimized_msg}")
+
+            # 4. 推送提醒结果到前端服务器
+            await push_alert_to_frontend(judge_result)
+
         except Exception as e:
-            print(f"⚠️ 提醒发送失败: {e}")
-    return state
+            print(f"❌ 流程异常：{str(e)}")
+        
+        await asyncio.sleep(2)  # 每2秒执行一次
 
-workflow = StateGraph(AgentState)
-workflow.add_node("judge", judge_node)
-workflow.add_node("alert", alert_node)
-workflow.set_entry_point("judge")
-workflow.add_edge("judge", "alert")
-workflow.add_edge("alert", END)
+async def push_alert_to_frontend(decision: dict):
+    """推送提醒结果到前端服务器（复用原有 mcp_server.py 的接口）"""
+    import aiohttp
+    try:
+        async with aiohttp.ClientSession() as session:
+            await session.post(
+                "http://localhost:8000/api/set_agent_result",
+                json={
+                    "alert": decision["alert"],
+                    "msg": decision["msg"],
+                    "emotion": decision["emotion"]
+                },
+                timeout=aiohttp.ClientTimeout(total=3)
+            )
+    except Exception as e:
+        print(f"❌ 推送前端失败：{str(e)}")
 
-agent_app = workflow.compile()
+if __name__ == "__main__":
+    asyncio.run(llm_decision_workflow())
+    

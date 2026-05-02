@@ -14,6 +14,7 @@ async def main():
             app = state["current_app"]
             duration = state["today_usage_seconds"] 
             emotion = state["emotion"]
+            is_entertainment = state["is_entertainment"]  # 新增：获取娱乐应用标识
 
             # 推送给中转服务器
             try:
@@ -22,11 +23,12 @@ async def main():
                     json={
                         "app": app,
                         "duration": duration,
-                        "emotion": emotion
+                        "emotion": emotion,
+                        "is_entertainment": is_entertainment  # 新增：传递娱乐应用标识
                     },
                     timeout=2
                 )
-                print(f"DEBUG: {app} | {duration}s | {emotion}")
+                print(f"DEBUG: {app} | {duration}s | {emotion} | 娱乐应用: {is_entertainment}")
             except Exception as e:
                 print(f"❌ 推送失败 (请检查 server.py 是否启动): {e}")
 

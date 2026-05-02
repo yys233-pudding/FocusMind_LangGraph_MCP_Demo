@@ -7,6 +7,12 @@ import win32gui
 from collections import Counter
 from deepface import DeepFace
 
+# 娱乐应用关键词列表（包含匹配）
+ENTERTAINMENT_APPS = [
+    "哔哩哔哩", "bilibili", "Steam", "微信", "QQ",
+    "爱奇艺", "腾讯视频", "优酷",  "YouTube", "Netflix", "Spotify"
+]
+
 class RealTimeMonitor:
     def __init__(self, db_path="data/usage_stats.db"):
         self.db_path = db_path
@@ -48,13 +54,13 @@ class RealTimeMonitor:
             ret, frame = cap.read()
             if ret:
                 try:
-                    # 使用 DeepFace 识别[cite: 4]
+                    # 使用 DeepFace 识别
                     result = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False)
                     raw_emotion = result[0]['dominant_emotion']
                     self.emotions_buffer.append(raw_emotion) 
                 except: pass
             
-            # 5秒结算一次[cite: 4]
+            # 5秒结算一次
             now = time.time()
             if now - self.last_vote_time >= 5:
                 if self.emotions_buffer:
@@ -80,14 +86,23 @@ class RealTimeMonitor:
         stored = row[0] if row[0] else 0
         conn.close()
         return stored + (time.time() - self.start_time)
+    
+    # 新增：判断当前应用是否为娱乐应用（包含匹配）
+    def is_entertainment_app(self):
+        current_app_lower = self.current_app.lower()
+        for keyword in ENTERTAINMENT_APPS:
+            if keyword.lower() in current_app_lower:
+                return True
+        return False
 
     def get_fused_state(self):
-        # 统一 key 名为 today_usage_seconds[cite: 4]
+        # 统一 key 名为 today_usage_seconds
         return {
             "emotion": self.stable_emotion,
             "current_app": self.current_app,
             "today_usage_seconds": int(self.get_today_total(self.current_app)),
-            "timestamp": time.strftime("%H:%M:%S")
+            "timestamp": time.strftime("%H:%M:%S"),
+            "is_entertainment": self.is_entertainment_app()  # 新增字段：是否为娱乐应用
         }
 
     def stop(self):

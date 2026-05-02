@@ -1,8 +1,108 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import winsound
+import time
 
 app = FastAPI(title="AI 娱乐时长监控助手")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 全局状态，给前端展示
+latest_status = {
+    "app": "等待数据...",
+    "duration": 0,
+    "emotion": "检测中...",
+    "is_entertainment": False,
+    "agent_alert": False,
+    "agent_msg": "",
+    "alert_emotion": "neutral",  # LLM生成的提醒表情
+    "last_alert_time": ""
+}
+
+# ASCII 表情矩阵
+EMOTION_MATRIX = {
+    "happy": [
+        " [ ^   ^ ] ",
+        " [   v   ] ",
+        " [  ___  ] "
+    ],
+    "sad": [
+        " [ _   _ ] ",
+        " [   .   ] ",
+        " [  ---  ] "
+    ],
+    "neutral": [
+        " [ -   - ] ",
+        " [   .   ] ",
+        " [  ---  ] "
+    ],
+    "warn": [
+        " [ !   ! ] ",
+        " [   ^   ] ",
+        " [  ~~~  ] "
+    ],
+    "tired": [
+        " [ ≡   ≡ ] ",
+        " [   ..  ] ",
+        " [  ___  ] "
+    ]
+}
+
+def play_alert_sound(emotion: str):
+    """播放系统提示音"""
+    try:
+        frequencies = {"happy": 784, "sad": 262, "warn": 880, "tired": 392, "default": 523}
+        freq = frequencies.get(emotion, frequencies["default"])
+        winsound.Beep(freq, 300)
+    except:
+        pass
+
+def print_emotion_matrix(emotion: str, msg: str):
+    """控制台打印表情矩阵"""
+    matrix = EMOTION_MATRIX.get(emotion, EMOTION_MATRIX["neutral"])
+    print("\n" + "="*30)
+    for line in matrix:
+        print(line.center(30))
+    print(f"\n📢 提醒：{msg}")
+    print("="*30 + "\n")
+
+@app.post("/api/update")
+async def update_status(req: Request):
+    """接收 main.py 推送的数据"""
+    data = await req.json()
+    global latest_status
+    latest_status["app"] = data.get("app", latest_status["app"])
+    latest_status["duration"] = data.get("duration", latest_status["duration"])
+    latest_status["emotion"] = data.get("emotion", latest_status["emotion"])
+    latest_status["is_entertainment"] = data.get("is_entertainment", latest_status["is_entertainment"])
+    return {"status": "ok"}
+
+@app.post("/api/set_agent_result")
+async def set_agent_result(req: Request):
+    """接收 MCP Server 的提醒决策"""
+    try:
+        data = await req.json()
+    except:
+        return {"status": "error", "msg": "Invalid JSON"}
+    global latest_status
+    latest_status["agent_alert"] = data.get("alert", False)
+    latest_status["agent_msg"] = data.get("msg", "")
+    latest_status["alert_emotion"] = data.get("emotion", "warn")  # 提醒表情，不覆盖用户情绪
+    if data.get("alert"):
+        latest_status["last_alert_time"] = time.strftime("%H:%M:%S")
+    return {"status":"ok"}
+
+@app.get("/api/data")
+async def get_data():
+    """向前端提供实时状态"""
+    return latest_status
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -193,7 +293,7 @@ const FACE_MAP = {
 // 每秒刷新数据
 async function update() {
     try {
-        const res = await fetch("http://127.0.0.1:8000/api/data");
+        const res = await fetch("http://127.0.0.1:8001/api/data");
         const data = await res.json();
 
         // 填充面板
@@ -215,7 +315,9 @@ async function update() {
             status.className = "warn";
             face.className = "face-box face-alert";
             chat.className = "chat-box chat-alert";
-            face.innerText = FACE_MAP.warn;
+            // 使用alert_emotion选择表情矩阵
+            const alertEmotion = data.alert_emotion || data.emotion || "warn";
+            face.innerText = FACE_MAP[alertEmotion] || FACE_MAP.warn;
             chat.innerText = data.agent_msg || "休息一下吧！";
         } else {
             status.innerText = "✅ 正常";
@@ -240,4 +342,4 @@ setInterval(update, 1000);
 
 if __name__ == "__main__":
     print("✅ 网页前端已启动：http://127.0.0.1:8001")
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="127.0.0.1", port=8001)  # 保持8001

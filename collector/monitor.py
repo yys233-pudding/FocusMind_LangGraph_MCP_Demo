@@ -71,23 +71,35 @@ class RealTimeMonitor:
             time.sleep(0.5)
         cap.release()
 
+    def _get_entertainment_keyword(self, app_name):
+        """获取应用对应的娱乐关键词，用于分组统计"""
+        app_lower = app_name.lower()
+        for keyword in ENTERTAINMENT_APPS:
+            if keyword.lower() in app_lower:
+                return keyword
+        return app_name  # 非娱乐应用，返回原名称
+
     def _save_usage(self, app, duration):
         date = time.strftime("%Y-%m-%d")
+        # 使用娱乐关键词作为分组键
+        ent_key = self._get_entertainment_keyword(app)
         conn = sqlite3.connect(self.db_path)
-        conn.execute("INSERT INTO usage VALUES (?, ?, ?)", (date, app, duration))
+        conn.execute("INSERT INTO usage VALUES (?, ?, ?)", (date, ent_key, duration))
         conn.commit()
         conn.close()
 
     def get_today_total(self, app_name):
+        """获取今日使用时长的分组统计"""
         date = time.strftime("%Y-%m-%d")
+        ent_key = self._get_entertainment_keyword(app_name)
         conn = sqlite3.connect(self.db_path)
-        cursor = conn.execute("SELECT SUM(duration) FROM usage WHERE date=? AND app=?", (date, app_name))
+        cursor = conn.execute("SELECT SUM(duration) FROM usage WHERE date=? AND app=?", (date, ent_key))
         row = cursor.fetchone()
         stored = row[0] if row[0] else 0
         conn.close()
         return stored + (time.time() - self.start_time)
-    
-    # 新增：判断当前应用是否为娱乐应用（包含匹配）
+
+    # 判断当前应用是否为娱乐应用（包含匹配）
     def is_entertainment_app(self):
         current_app_lower = self.current_app.lower()
         for keyword in ENTERTAINMENT_APPS:
@@ -96,13 +108,14 @@ class RealTimeMonitor:
         return False
 
     def get_fused_state(self):
-        # 统一 key 名为 today_usage_seconds
+        ent_key = self._get_entertainment_keyword(self.current_app)
         return {
             "emotion": self.stable_emotion,
             "current_app": self.current_app,
+            "entertainment_key": ent_key,  # 娱乐分组关键词
             "today_usage_seconds": int(self.get_today_total(self.current_app)),
             "timestamp": time.strftime("%H:%M:%S"),
-            "is_entertainment": self.is_entertainment_app()  # 新增字段：是否为娱乐应用
+            "is_entertainment": self.is_entertainment_app()
         }
 
     def stop(self):

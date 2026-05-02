@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import ast; ast.parse\\(open\\('agent/graph.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('agent/graph.py', encoding='utf-8'\\).read\\(\\)\\); print\\('语法OK'\\)\")",
+      "Bash(timeout 3 python server/mcp_server_run.py)",
+      "Bash(timeout 2 python server/mcp_server_run.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('server/web_server.py', encoding='utf-8'\\).read\\(\\)\\); print\\('web_server语法OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('server/mcp_server_run.py', encoding='utf-8'\\).read\\(\\)\\); print\\('mcp_server语法OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('agent/graph.py', encoding='utf-8'\\).read\\(\\)\\); print\\('graph语法OK'\\)\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8001/api/set_agent_result -H \"Content-Type: application/json\" -d '{\"alert\":true,\"msg\":\"测试提醒\",\"emotion\":\"happy\"}')",
+      "Bash(curl -s http://127.0.0.1:8001/api/data)",
+      "Bash(curl -s -X POST http://127.0.0.1:8001/api/update -H \"Content-Type: application/json\" -d '{\"app\":\"test\",\"duration\":100,\"emotion\":\"happy\",\"is_entertainment\":true}')",
+      "Bash(curl -s -X POST http://127.0.0.1:8001/api/set_agent_result -H \"Content-Type: application/json\" -d \"{\\\\\"alert\\\\\":true,\\\\\"msg\\\\\":\\\\\"test\\\\\",\\\\\"emotion\\\\\":\\\\\"happy\\\\\"}\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8001/api/set_agent_result -H \"Content-Type: application/json\" -d \"{\\\\\"alert\\\\\":true,\\\\\"msg\\\\\":\\\\\"测试提醒\\\\\",\\\\\"emotion\\\\\":\\\\\"happy\\\\\"}\")",
+      "Bash(curl -s -X POST http://127.0.0.1:8001/api/set_agent_result -H \"Content-Type: application/json\" --data-raw '{\"alert\":true,\"msg\":\"测试提醒\",\"emotion\":\"happy\"}')",
+      "Bash(python -c ' *)"
+    ]
+  }
+}

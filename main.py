@@ -7,22 +7,20 @@ from collector.monitor import RealTimeMonitor
 monitor = RealTimeMonitor()
 
 async def main():
-    print("✅ 数据采集 Agent 已启动。请保持窗口激活并面对摄像头。")
+    print("[OK] Data collection Agent started. Keep window active and face the camera.")
 
-    # 确保数据目录存在
     os.makedirs("data", exist_ok=True)
 
     while True:
         try:
             state = monitor.get_fused_state()
 
-            # 修正：对应 monitor.py 中的 key
             app = state["current_app"]
             duration = state["today_usage_seconds"]
             emotion = state["emotion"]
             is_entertainment = state["is_entertainment"]
 
-            # 1. 保存到文件供 MCP Server 读取
+            # 1. Save to file for MCP Server
             state_for_mcp = {
                 "current_app": app,
                 "today_usage_seconds": duration,
@@ -33,7 +31,7 @@ async def main():
             with open("data/current_state.json", "w") as f:
                 json.dump(state_for_mcp, f, ensure_ascii=False)
 
-            # 2. 推送给 web_server (端口8001)
+            # 2. Push to web_server (port 8001)
             try:
                 requests.post(
                     "http://localhost:8001/api/update",
@@ -45,12 +43,12 @@ async def main():
                     },
                     timeout=2
                 )
-                print(f"DEBUG: {app} | {duration}s | {emotion} | 娱乐应用: {is_entertainment}")
+                print(f"DEBUG: {app} | {duration}s | {emotion} | entertainment: {is_entertainment}")
             except Exception as e:
-                print(f"❌ 推送失败 (请检查 server/web_server.py 是否启动): {e}")
+                print(f"[FAIL] Push failed (check if server/web_server.py is running): {e}")
 
         except Exception as e:
-            print(f"⚠️ 循环异常: {e}")
+            print(f"[ERROR] Loop exception: {e}")
 
         await asyncio.sleep(2)
 

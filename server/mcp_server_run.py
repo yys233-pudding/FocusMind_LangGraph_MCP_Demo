@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import os
@@ -7,34 +6,29 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-# 创建 MCP Server 实例
 server = Server("usage-monitor-server")
 
-# 存储最新状态（从 main.py 的推送获取）
 latest_state = {
-    "current_app": "未知",
+    "current_app": "Unknown",
     "today_usage_seconds": 0,
     "emotion": "neutral",
     "is_entertainment": False,
     "timestamp": ""
 }
 
-# 提醒阈值配置
-USAGE_THRESHOLD_SECONDS = 300  # 5分钟
+USAGE_THRESHOLD_SECONDS = 300
 
-# 娱乐应用关键词
 ENTERTAINMENT_APPS = [
-    "哔哩哔哩", "bilibili", "Steam", "微信", "QQ",
-    "爱奇艺", "腾讯视频", "优酷", "YouTube", "Netflix", "Spotify"
+    "bilibili", "Steam", "WeChat", "QQ",
+    "iQiyi", "Tencent Video", "Youku", "YouTube", "Netflix", "Spotify"
 ]
 
-# 表情矩阵
 EMOTION_MATRIX = {
     "happy": [" [ ^   ^ ] ", " [   v   ] ", " [  ___  ] "],
     "sad": [" [ _   _ ] ", " [   .   ] ", " [  ---  ] "],
     "neutral": [" [ -   - ] ", " [   .   ] ", " [  ---  ] "],
     "warn": [" [ !   ! ] ", " [   ^   ] ", " [  ~~~  ] "],
-    "tired": [" [ ≡   ≡ ] ", " [   ..  ] ", " [  ___  ] "],
+    "tired": [" [ =   = ] ", " [   ..  ] ", " [  ___  ] "],
     "angry": [" [ >   < ] ", " [   ##  ] ", " [  ===  ] "]
 }
 
@@ -46,8 +40,7 @@ def is_entertainment(app_name: str) -> bool:
     return False
 
 def judge_alert(state: dict) -> dict:
-    """判断是否需要提醒"""
-    current_app = state.get("current_app", "未知")
+    current_app = state.get("current_app", "Unknown")
     duration = state.get("today_usage_seconds", 0)
     emotion = state.get("emotion", "neutral")
     is_ent = state.get("is_entertainment", False)
@@ -55,18 +48,15 @@ def judge_alert(state: dict) -> dict:
     alert = False
     msg = ""
 
-    # 条件1: 娱乐应用 + happy表情
     if is_ent and emotion == "happy":
         alert = True
-        msg = f"检测到您在 {current_app} 过度兴奋，请注意休息！"
-    # 条件2: 使用时长超过5分钟
+        msg = f"Over-excited on {current_app}, take a break!"
     elif duration > USAGE_THRESHOLD_SECONDS:
         alert = True
-        msg = f"{current_app} 已连续使用 {duration // 60}分{duration % 60}秒，超过5分钟了，休息一下吧！"
-    # 条件3: tired 表情
+        msg = f"{current_app} used for {duration // 60}m{duration % 60}s, over 5 min - rest time!"
     elif emotion == "tired":
         alert = True
-        msg = f"您看起来有些疲惫，{current_app} 已使用 {duration} 秒，该休息了！"
+        msg = f"You look tired, {current_app} used for {duration}s, time for a break!"
 
     return {
         "alert": alert,
@@ -76,11 +66,10 @@ def judge_alert(state: dict) -> dict:
 
 @server.list_tools()
 async def list_tools():
-    """列出所有可用工具"""
     return [
         Tool(
             name="get_user_usage_state",
-            description="获取用户当前使用状态",
+            description="Get user's current usage state",
             inputSchema={
                 "type": "object",
                 "properties": {},
@@ -89,27 +78,27 @@ async def list_tools():
         ),
         Tool(
             name="judge_rest_alert",
-            description="根据状态判断是否需要提醒",
+            description="Judge whether to alert based on state",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "current_app": {"type": "string", "description": "当前应用名称"},
-                    "duration": {"type": "integer", "description": "使用时长(秒)"},
-                    "emotion": {"type": "string", "description": "当前表情"},
-                    "is_entertainment": {"type": "boolean", "description": "是否为娱乐应用"}
+                    "current_app": {"type": "string", "description": "Current app name"},
+                    "duration": {"type": "integer", "description": "Usage duration (seconds)"},
+                    "emotion": {"type": "string", "description": "Current emotion"},
+                    "is_entertainment": {"type": "boolean", "description": "Is entertainment app"}
                 },
                 "required": ["current_app", "duration", "emotion", "is_entertainment"]
             }
         ),
         Tool(
             name="send_alert_to_frontend",
-            description="发送提醒到前端显示",
+            description="Send alert to frontend display",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "agent_msg": {"type": "string", "description": "LLM生成的提醒文案"},
-                    "agent_emotion": {"type": "string", "description": "用户当前表情类型"},
-                    "current_app": {"type": "string", "description": "当前应用"}
+                    "agent_msg": {"type": "string", "description": "LLM-generated alert message"},
+                    "agent_emotion": {"type": "string", "description": "User's current emotion type"},
+                    "current_app": {"type": "string", "description": "Current app"}
                 },
                 "required": ["agent_msg", "agent_emotion", "current_app"]
             }
@@ -117,7 +106,6 @@ async def list_tools():
     ]
 
 async def push_alert_to_web_server(result: dict):
-    """推送提醒结果到 web_server"""
     import aiohttp
     import sys
     try:
@@ -131,20 +119,17 @@ async def push_alert_to_web_server(result: dict):
                 },
                 timeout=aiohttp.ClientTimeout(total=3)
             )
-            # 写入 stderr 日志（不污染 stdout）
-            sys.stderr.write(f"MCP推送成功: {resp.status}\n")
+            sys.stderr.write(f"MCP push success: {resp.status}\n")
             sys.stderr.flush()
     except Exception as e:
-        sys.stderr.write(f"MCP推送失败: {e}\n")
+        sys.stderr.write(f"MCP push failed: {e}\n")
         sys.stderr.flush()
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict):
-    """处理工具调用"""
     global latest_state
 
     if name == "get_user_usage_state":
-        # 从文件读取最新状态（由 main.py 更新）
         try:
             with open("data/current_state.json", "r") as f:
                 latest_state = json.load(f)
@@ -157,9 +142,8 @@ async def call_tool(name: str, arguments: dict):
         )]
 
     elif name == "judge_rest_alert":
-        # 使用传入的参数进行判断
         state = {
-            "current_app": arguments.get("current_app", "未知"),
+            "current_app": arguments.get("current_app", "Unknown"),
             "today_usage_seconds": arguments.get("duration", 0),
             "emotion": arguments.get("emotion", "neutral"),
             "is_entertainment": arguments.get("is_entertainment", False)
@@ -167,7 +151,6 @@ async def call_tool(name: str, arguments: dict):
 
         result = judge_alert(state)
 
-        # 如果需要提醒，推送到 web_server
         if result["alert"]:
             await push_alert_to_web_server(result)
 
@@ -177,17 +160,15 @@ async def call_tool(name: str, arguments: dict):
         )]
 
     elif name == "send_alert_to_frontend":
-        agent_msg = arguments.get("agent_msg", "休息一下吧！")
+        agent_msg = arguments.get("agent_msg", "Take a break!")
         agent_emotion = arguments.get("agent_emotion", "happy")
 
-        # 从文件读取最新的用户使用数据（由 main.py 更新）
         try:
             with open("data/current_state.json", "r") as f:
                 user_state = json.load(f)
         except:
             user_state = {}
 
-        # 推送到前端（包含用户数据和LLM生成的数据）
         result = {
             "alert": True,
             "agent_msg": agent_msg,
@@ -199,10 +180,8 @@ async def call_tool(name: str, arguments: dict):
         }
         await push_alert_to_web_server(result)
 
-        # 获取表情矩阵
         emotion_matrix = EMOTION_MATRIX.get(agent_emotion, EMOTION_MATRIX["happy"])
 
-        # 返回结果（包含表情矩阵）
         return [TextContent(
             type="text",
             text=json.dumps({
@@ -218,8 +197,6 @@ async def call_tool(name: str, arguments: dict):
         raise ValueError(f"Unknown tool: {name}")
 
 async def main():
-    """启动 MCP Server"""
-    # 初始化状态文件
     os.makedirs("data", exist_ok=True)
     with open("data/current_state.json", "w") as f:
         json.dump(latest_state, f, ensure_ascii=False)

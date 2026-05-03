@@ -7,24 +7,24 @@ import win32gui
 from collections import Counter
 from deepface import DeepFace
 
-# 娱乐应用关键词列表（包含匹配）
+# Entertainment app keywords
 ENTERTAINMENT_APPS = [
-    "哔哩哔哩", "bilibili", "Steam", "微信", "QQ",
-    "爱奇艺", "腾讯视频", "优酷",  "YouTube", "Netflix", "Spotify"
+    "bilibili", "Steam", "WeChat", "QQ",
+    "iQiyi", "Tencent Video", "Youku", "YouTube", "Netflix", "Spotify"
 ]
 
 class RealTimeMonitor:
     def __init__(self, db_path="data/usage_stats.db"):
         self.db_path = db_path
         self._init_db()
-        self.current_app = "桌面"
+        self.current_app = "Desktop"
         self.start_time = time.time()
         self.running = True
-        
-        self.emotions_buffer = []      
-        self.stable_emotion = "neutral" 
+
+        self.emotions_buffer = []
+        self.stable_emotion = "neutral"
         self.last_vote_time = time.time()
-        
+
         threading.Thread(target=self._window_listener, daemon=True).start()
         threading.Thread(target=self._emotion_capture_loop, daemon=True).start()
 
@@ -54,34 +54,32 @@ class RealTimeMonitor:
             ret, frame = cap.read()
             if ret:
                 try:
-                    # 使用 DeepFace 识别
                     result = DeepFace.analyze(frame, actions=['emotion'], enforce_detection=False)
                     raw_emotion = result[0]['dominant_emotion']
-                    self.emotions_buffer.append(raw_emotion) 
+                    self.emotions_buffer.append(raw_emotion)
                 except: pass
-            
-            # 5秒结算一次
+
+            # Settle every 5 seconds
             now = time.time()
             if now - self.last_vote_time >= 5:
                 if self.emotions_buffer:
                     most_common = Counter(self.emotions_buffer).most_common(1)[0][0]
                     self.stable_emotion = most_common
-                    self.emotions_buffer = [] 
+                    self.emotions_buffer = []
                 self.last_vote_time = now
             time.sleep(0.5)
         cap.release()
 
     def _get_entertainment_keyword(self, app_name):
-        """获取应用对应的娱乐关键词，用于分组统计"""
+        """Get entertainment keyword for grouping"""
         app_lower = app_name.lower()
         for keyword in ENTERTAINMENT_APPS:
             if keyword.lower() in app_lower:
                 return keyword
-        return app_name  # 非娱乐应用，返回原名称
+        return app_name
 
     def _save_usage(self, app, duration):
         date = time.strftime("%Y-%m-%d")
-        # 使用娱乐关键词作为分组键
         ent_key = self._get_entertainment_keyword(app)
         conn = sqlite3.connect(self.db_path)
         conn.execute("INSERT INTO usage VALUES (?, ?, ?)", (date, ent_key, duration))
@@ -89,7 +87,7 @@ class RealTimeMonitor:
         conn.close()
 
     def get_today_total(self, app_name):
-        """获取今日使用时长的分组统计"""
+        """Get today's total usage by entertainment keyword"""
         date = time.strftime("%Y-%m-%d")
         ent_key = self._get_entertainment_keyword(app_name)
         conn = sqlite3.connect(self.db_path)
@@ -99,8 +97,8 @@ class RealTimeMonitor:
         conn.close()
         return stored + (time.time() - self.start_time)
 
-    # 判断当前应用是否为娱乐应用（包含匹配）
     def is_entertainment_app(self):
+        """Check if current app is entertainment"""
         current_app_lower = self.current_app.lower()
         for keyword in ENTERTAINMENT_APPS:
             if keyword.lower() in current_app_lower:
@@ -112,7 +110,7 @@ class RealTimeMonitor:
         return {
             "emotion": self.stable_emotion,
             "current_app": self.current_app,
-            "entertainment_key": ent_key,  # 娱乐分组关键词
+            "entertainment_key": ent_key,
             "today_usage_seconds": int(self.get_today_total(self.current_app)),
             "timestamp": time.strftime("%H:%M:%S"),
             "is_entertainment": self.is_entertainment_app()

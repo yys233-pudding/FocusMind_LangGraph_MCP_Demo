@@ -5,7 +5,7 @@ import uvicorn
 import winsound
 import time
 
-app = FastAPI(title="AI 娱乐时长监控助手")
+app = FastAPI(title="AI Entertainment Time Monitor")
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,20 +14,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 全局状态，给前端展示
 latest_status = {
-    "app": "等待数据...",
+    "app": "Waiting for data...",
     "duration": 0,
-    "emotion": "检测中...",
+    "emotion": "Detecting...",
     "is_entertainment": False,
     "agent_alert": False,
     "agent_msg": "",
-    "alert_emotion": "neutral",  # LLM生成的表情
-    "user_emotion": "neutral",   # 用户表情
+    "alert_emotion": "neutral",
+    "user_emotion": "neutral",
     "last_alert_time": ""
 }
 
-# ASCII 表情矩阵
 EMOTION_MATRIX = {
     "happy": [
         " [ ^   ^ ] ",
@@ -50,14 +48,13 @@ EMOTION_MATRIX = {
         " [  ~~~  ] "
     ],
     "tired": [
-        " [ ≡   ≡ ] ",
+        " [ =   = ] ",
         " [   ..  ] ",
         " [  ___  ] "
     ]
 }
 
 def play_alert_sound(emotion: str):
-    """播放系统提示音"""
     try:
         frequencies = {"happy": 784, "sad": 262, "warn": 880, "tired": 392, "default": 523}
         freq = frequencies.get(emotion, frequencies["default"])
@@ -66,17 +63,15 @@ def play_alert_sound(emotion: str):
         pass
 
 def print_emotion_matrix(emotion: str, msg: str):
-    """控制台打印表情矩阵"""
     matrix = EMOTION_MATRIX.get(emotion, EMOTION_MATRIX["neutral"])
     print("\n" + "="*30)
     for line in matrix:
         print(line.center(30))
-    print(f"\n📢 提醒：{msg}")
+    print(f"\n[ALERT] {msg}")
     print("="*30 + "\n")
 
 @app.post("/api/update")
 async def update_status(req: Request):
-    """接收 main.py 推送的数据"""
     data = await req.json()
     global latest_status
     latest_status["app"] = data.get("app", latest_status["app"])
@@ -87,20 +82,16 @@ async def update_status(req: Request):
 
 @app.post("/api/set_agent_result")
 async def set_agent_result(req: Request):
-    """接收 MCP Server 的提醒决策（包含LLM生成的表情和建议）"""
     try:
         data = await req.json()
     except:
         return {"status": "error", "msg": "Invalid JSON"}
     global latest_status
 
-    # 更新前端展示的提醒数据（LLM生成的）
     latest_status["agent_alert"] = data.get("alert", False)
     latest_status["agent_msg"] = data.get("agent_msg", "")
-    latest_status["alert_emotion"] = data.get("alert_emotion", "happy")  # LLM生成的表情
+    latest_status["alert_emotion"] = data.get("alert_emotion", "happy")
 
-    # 保留用户实际数据（由 main.py 通过 /api/update 提供）
-    # 但如果 MCP 提供了用户数据，也可以更新
     if "current_app" in data:
         latest_status["app"] = data.get("current_app", latest_status["app"])
     if "today_usage_seconds" in data:
@@ -117,18 +108,17 @@ async def set_agent_result(req: Request):
 
 @app.get("/api/data")
 async def get_data():
-    """向前端提供实时状态"""
     return latest_status
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return """
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 学习助手</title>
+    <title>AI Study Assistant</title>
     <style>
         * {
             margin: 0;
@@ -190,7 +180,6 @@ async def index():
             font-weight: bold;
         }
 
-        /* 表情矩阵框 */
         .face-box {
             width: 100%;
             min-height: 160px;
@@ -205,7 +194,6 @@ async def index():
             line-height: 1.5;
         }
 
-        /* 对话框 */
         .chat-box {
             width: 100%;
             min-height: 80px;
@@ -233,93 +221,86 @@ async def index():
 <body>
 
 <div class="container">
-    <!-- 实时监控面板 -->
     <div class="card">
-        <h2>🎯 实时使用状态</h2>
+        <h2>Real-time Status</h2>
         <div class="grid">
             <div class="item">
-                <span class="label">当前应用：</span>
+                <span class="label">Current App:</span>
                 <span id="app">-</span>
             </div>
             <div class="item">
-                <span class="label">已用时长：</span>
-                <span id="duration">0</span> 秒
+                <span class="label">Duration:</span>
+                <span id="duration">0</span> s
             </div>
             <div class="item">
-                <span class="label">用户情绪：</span>
+                <span class="label">User Emotion:</span>
                 <span id="emotion">-</span>
             </div>
             <div class="item">
-                <span class="label">娱乐应用：</span>
-                <span id="is_ent" class="normal">否</span>
+                <span class="label">Entertainment:</span>
+                <span id="is_ent" class="normal">No</span>
             </div>
             <div class="item">
-                <span class="label">AI 状态：</span>
-                <span id="agent_status" class="normal">正常</span>
+                <span class="label">AI Status:</span>
+                <span id="agent_status" class="normal">Normal</span>
             </div>
             <div class="item">
-                <span class="label">上次提醒：</span>
+                <span class="label">Last Alert:</span>
                 <span id="last_alert">-</span>
             </div>
         </div>
     </div>
 
-    <!-- 表情矩阵框 -->
     <div class="card">
-        <h2>😊 AI 表情</h2>
+        <h2>AI Emotion</h2>
         <div id="faceArea" class="face-box">
- [ ^   ^ ] 
- [   v   ] 
+ [ ^   ^ ]
+ [   v   ]
  [  ___  ]
         </div>
     </div>
 
-    <!-- AI 对话框 -->
     <div class="card">
-        <h2>💬 AI 提醒</h2>
+        <h2>AI Reminder</h2>
         <div id="chatArea" class="chat-box">
-好好学习，天天向上～
+Keep studying, stay focused!
         </div>
     </div>
 </div>
 
 <script>
-// 默认表情
-const DEFAULT_FACE = ` [ ^   ^ ] 
- [   v   ] 
+const DEFAULT_FACE = ` [ ^   ^ ]
+ [   v   ]
  [  ___  ]`;
-const DEFAULT_TEXT = "好好学习，天天向上～";
+const DEFAULT_TEXT = "Keep studying, stay focused!";
 
-// 表情矩阵库
 const FACE_MAP = {
-    warn: ` [ !   ! ] 
- [   ^   ] 
+    warn: ` [ !   ! ]
+ [   ^   ]
  [  ~~~  ]`,
-    happy: ` [ ^   ^ ] 
- [   v   ] 
+    happy: ` [ ^   ^ ]
+ [   v   ]
  [  ___  ]`,
-    tired: ` [ ≡   ≡ ] 
- [   ..  ] 
+    tired: ` [ =   = ]
+ [   ..  ]
  [  ___  ]`,
-    sad: ` [ _   _ ] 
- [   .   ] 
+    sad: ` [ _   _ ]
+ [   .   ]
  [  ---  ]`
 };
 
-// 每秒刷新数据
 async function update() {
     try {
         const res = await fetch("http://127.0.0.1:8001/api/data");
         const data = await res.json();
 
-        // 填充面板
-        document.getElementById("app").innerText = data.app || "未知";
+        document.getElementById("app").innerText = data.app || "Unknown";
         document.getElementById("duration").innerText = data.duration || 0;
-        document.getElementById("emotion").innerText = data.emotion || "未知";
+        document.getElementById("emotion").innerText = data.emotion || "Unknown";
         document.getElementById("last_alert").innerText = data.last_alert_time || "-";
 
         const is_ent = document.getElementById("is_ent");
-        is_ent.innerText = data.is_entertainment ? "是" : "否";
+        is_ent.innerText = data.is_entertainment ? "Yes" : "No";
         is_ent.className = data.is_entertainment ? "warn" : "normal";
 
         const status = document.getElementById("agent_status");
@@ -327,16 +308,15 @@ async function update() {
         const chat = document.getElementById("chatArea");
 
         if (data.agent_alert) {
-            status.innerText = "⚠️ 提醒中";
+            status.innerText = "Alerting";
             status.className = "warn";
             face.className = "face-box face-alert";
             chat.className = "chat-box chat-alert";
-            // 使用alert_emotion选择表情矩阵
             const alertEmotion = data.alert_emotion || data.emotion || "warn";
             face.innerText = FACE_MAP[alertEmotion] || FACE_MAP.warn;
-            chat.innerText = data.agent_msg || "休息一下吧！";
+            chat.innerText = data.agent_msg || "Take a break!";
         } else {
-            status.innerText = "✅ 正常";
+            status.innerText = "Normal";
             status.className = "normal";
             face.className = "face-box";
             chat.className = "chat-box";
@@ -345,7 +325,7 @@ async function update() {
         }
 
     } catch (e) {
-        console.log("等待后端连接...");
+        console.log("Waiting for backend connection...");
     }
 }
 
@@ -357,5 +337,5 @@ setInterval(update, 1000);
 """
 
 if __name__ == "__main__":
-    print("✅ 网页前端已启动：http://127.0.0.1:8001")
-    uvicorn.run(app, host="127.0.0.1", port=8001)  # 保持8001
+    print("Web frontend started: http://127.0.0.1:8001")
+    uvicorn.run(app, host="127.0.0.1", port=8001)

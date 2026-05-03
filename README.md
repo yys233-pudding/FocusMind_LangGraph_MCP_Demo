@@ -10,9 +10,8 @@
             padding: 0;
             box-sizing: border-box;
         }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Microsoft YaHei";
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             max-width: 960px;
             margin: 0 auto;
             padding: 30px 20px;
@@ -20,7 +19,6 @@
             color: #24292e;
             line-height: 1.7;
         }
-
         .top-bar {
             position: sticky;
             top: 0;
@@ -33,12 +31,10 @@
             align-items: center;
             z-index: 10;
         }
-
         .top-bar h1 {
             font-size: 20px;
             font-weight: 600;
         }
-
         .lang-switch {
             display: flex;
             gap: 4px;
@@ -46,7 +42,6 @@
             padding: 4px;
             border-radius: 6px;
         }
-
         .lang-switch button {
             padding: 6px 14px;
             border: none;
@@ -57,16 +52,13 @@
             font-weight: 500;
             transition: all 0.2s;
         }
-
         .lang-switch button.active {
             background: #0969da;
             color: #fff;
         }
-
         .section {
             margin: 30px 0;
         }
-
         .section-title {
             font-size: 22px;
             font-weight: 600;
@@ -74,12 +66,10 @@
             padding-bottom: 8px;
             border-bottom: 2px solid #e1e4e8;
         }
-
         p {
             margin: 12px 0;
             font-size: 15px;
         }
-
         pre {
             background: #f6f8fa;
             padding: 18px;
@@ -90,84 +80,70 @@
             border: 1px solid #e1e4e8;
             white-space: pre;
         }
-
         code {
             background: #f6f8fa;
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 0.9em;
         }
-
         ul {
             margin: 12px 0;
             padding-left: 24px;
         }
-
         li {
             margin: 6px 0;
             font-size: 15px;
         }
-
         table {
             width: 100%;
             border-collapse: collapse;
             margin: 16px 0;
             font-size: 14px;
         }
-
         th, td {
             text-align: left;
             padding: 10px 14px;
             border: 1px solid #e1e4e8;
         }
-
         th {
             background: #f6f8fa;
             font-weight: 600;
         }
-
         tr:nth-child(even) {
             background: #fafafa;
         }
-
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
             margin: 16px 0;
         }
-
         .card {
             border: 1px solid #e1e4e8;
             border-radius: 6px;
             padding: 16px;
             background: #fafafa;
         }
-
         .card h4 {
             margin: 0 0 8px;
             font-size: 15px;
             color: #0969da;
         }
-
         .card .file {
             font-size: 12px;
             color: #666;
             margin-bottom: 8px;
         }
-
         .card p {
             margin: 0;
             font-size: 13px;
         }
-
         .badge-group {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
             margin: 12px 0;
         }
-
         .badge {
             display: inline-block;
             padding: 4px 10px;
@@ -175,12 +151,10 @@
             font-size: 12px;
             font-weight: 500;
         }
-
         .badge-blue { background: #ddf4ff; color: #0969da; }
         .badge-green { background: #dafbe1; color: #1a7f37; }
         .badge-orange { background: #fff3cd; color: #9a6700; }
         .badge-purple { background: #fbefff; color: #8250df; }
-
         .note {
             background: #fff8c5;
             border-left: 4px solid #fcc419;
@@ -189,7 +163,6 @@
             margin: 16px 0;
             font-size: 14px;
         }
-
         footer {
             margin-top: 48px;
             padding-top: 24px;
@@ -198,15 +171,12 @@
             color: #666;
             font-size: 13px;
         }
-
         .content {
             display: none;
         }
-
         .content.active {
             display: block;
         }
-
         @media (max-width: 640px) {
             .grid-2 { grid-template-columns: 1fr; }
         }

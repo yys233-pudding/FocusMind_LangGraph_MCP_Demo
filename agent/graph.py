@@ -108,37 +108,41 @@ async def judge_node(state: AgentState) -> AgentState:
 2. 时长超过 {USAGE_THRESHOLD_SECONDS} 秒 → 提醒
 3. tired/sad/angry 表情 → 提醒
 
-如果需要提醒，调用 MCP 工具 send_alert_to_frontend 发送提醒。
-如果不需要提醒，返回普通回复。
-
-请返回JSON格式（只有需要提醒时才调用工具）：
+请直接返回JSON格式，不要其他内容：
 {{"need_alert": true/false, "alert": true/false, "msg": "提醒文案（不超过30字）"}}"""
 
     try:
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content.strip()
 
-        # 解析 JSON
+        # 解析 JSON（如果LLM返回的是自然语言，则不需要提醒）
+        alert_msg = ""
+        need_alert = False
+
         json_match = re.search(r'\{[^}]+\}', content)
         if json_match:
-            result = json.loads(json_match.group())
-        else:
-            result = json.loads(content)
+            try:
+                result = json.loads(json_match.group())
+                need_alert = result.get("need_alert", False)
+                alert_msg = result.get("msg", "")
+            except:
+                pass
 
-        need_alert = result.get("need_alert", False)
-        alert_msg = result.get("msg", "")  # LLM生成的提醒文案
-
-        print(f"🤖 LLM 判断: need_alert={need_alert}, alert={result.get('alert')}")
-        print(f"💬 LLM 建议: {alert_msg}")
+        print(f"🤖 LLM 判断: need_alert={need_alert}")
+        if alert_msg:
+            print(f"💬 LLM 建议: {alert_msg}")
 
         # 如果需要提醒，LLM 决定调用 MCP 工具
         if need_alert and alert_msg:
             print(f"📤 LLM 决定调用 MCP 工具 send_alert_to_frontend")
             try:
-                # 传递完整的 LLM 生成数据
+                # 直接推送到前端（简单可靠）
+                await push_alert_to_webserver(alert_msg, emotion, current_app)
+
+                # 同时调用 MCP 获取表情矩阵用于控制台打印
                 mcp_success = await call_mcp_alert_tool(
-                    agent_msg=alert_msg,      # LLM生成的提醒文案
-                    agent_emotion=emotion,   # 用户当前表情
+                    agent_msg=alert_msg,
+                    agent_emotion=emotion,
                     current_app=current_app
                 )
                 print(f"🔧 MCP 工具调用结果: {'成功' if mcp_success else '失败'}")
@@ -160,6 +164,26 @@ async def judge_node(state: AgentState) -> AgentState:
         alert = is_ent and emotion == "happy" or duration > USAGE_THRESHOLD_SECONDS or emotion == "tired"
         alert_msg = "休息一下吧！" if alert else ""
         return {**state, "need_alert": alert, "alert": alert, "msg": alert_msg, "mcp_tool_called": False}
+
+async def push_alert_to_webserver(agent_msg: str, agent_emotion: str, current_app: str):
+    """直接推送提醒到前端 web_server"""
+    import aiohttp
+    try:
+        async with aiohttp.ClientSession() as session:
+            await session.post(
+                "http://localhost:8001/api/set_agent_result",
+                json={
+                    "alert": True,
+                    "agent_msg": agent_msg,
+                    "alert_emotion": agent_emotion,
+                    "user_emotion": agent_emotion,
+                    "current_app": current_app
+                },
+                timeout=aiohttp.ClientTimeout(total=3)
+            )
+            print(f"✅ 直接推送前端成功: {agent_msg}")
+    except Exception as e:
+        print(f"❌ 直接推送前端失败: {e}")
 
 async def call_mcp_alert_tool(agent_msg: str, agent_emotion: str, current_app: str) -> bool:
     """通过 MCP stdio 调用 send_alert_to_frontend 工具"""

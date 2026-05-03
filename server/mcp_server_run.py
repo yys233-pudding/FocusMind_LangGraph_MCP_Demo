@@ -180,11 +180,22 @@ async def call_tool(name: str, arguments: dict):
         agent_msg = arguments.get("agent_msg", "休息一下吧！")
         agent_emotion = arguments.get("agent_emotion", "happy")
 
-        # 推送到前端
+        # 从文件读取最新的用户使用数据（由 main.py 更新）
+        try:
+            with open("data/current_state.json", "r") as f:
+                user_state = json.load(f)
+        except:
+            user_state = {}
+
+        # 推送到前端（包含用户数据和LLM生成的数据）
         result = {
             "alert": True,
             "agent_msg": agent_msg,
-            "alert_emotion": agent_emotion  # 用户表情，用于选择表情矩阵
+            "alert_emotion": agent_emotion,
+            "user_emotion": user_state.get("emotion", "neutral"),
+            "current_app": user_state.get("current_app", ""),
+            "today_usage_seconds": user_state.get("today_usage_seconds", 0),
+            "is_entertainment": user_state.get("is_entertainment", False)
         }
         await push_alert_to_web_server(result)
 

@@ -22,7 +22,8 @@ latest_status = {
     "is_entertainment": False,
     "agent_alert": False,
     "agent_msg": "",
-    "alert_emotion": "neutral",  # LLM生成的提醒表情
+    "alert_emotion": "neutral",  # LLM生成的表情
+    "user_emotion": "neutral",   # 用户表情
     "last_alert_time": ""
 }
 
@@ -86,17 +87,32 @@ async def update_status(req: Request):
 
 @app.post("/api/set_agent_result")
 async def set_agent_result(req: Request):
-    """接收 MCP Server 的提醒决策"""
+    """接收 MCP Server 的提醒决策（包含LLM生成的表情和建议）"""
     try:
         data = await req.json()
     except:
         return {"status": "error", "msg": "Invalid JSON"}
     global latest_status
+
+    # 更新前端展示的提醒数据（LLM生成的）
     latest_status["agent_alert"] = data.get("alert", False)
-    latest_status["agent_msg"] = data.get("msg", "")
-    latest_status["alert_emotion"] = data.get("emotion", "warn")  # 提醒表情，不覆盖用户情绪
+    latest_status["agent_msg"] = data.get("agent_msg", "")
+    latest_status["alert_emotion"] = data.get("alert_emotion", "happy")  # LLM生成的表情
+
+    # 保留用户实际数据（由 main.py 通过 /api/update 提供）
+    # 但如果 MCP 提供了用户数据，也可以更新
+    if "current_app" in data:
+        latest_status["app"] = data.get("current_app", latest_status["app"])
+    if "today_usage_seconds" in data:
+        latest_status["duration"] = data.get("today_usage_seconds", latest_status["duration"])
+    if "user_emotion" in data:
+        latest_status["user_emotion"] = data.get("user_emotion", latest_status["user_emotion"])
+    if "is_entertainment" in data:
+        latest_status["is_entertainment"] = data.get("is_entertainment", latest_status["is_entertainment"])
+
     if data.get("alert"):
         latest_status["last_alert_time"] = time.strftime("%H:%M:%S")
+
     return {"status":"ok"}
 
 @app.get("/api/data")

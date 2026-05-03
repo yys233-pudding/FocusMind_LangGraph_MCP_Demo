@@ -70,9 +70,13 @@ python server/web_server.py
 **Terminal 2 - Agent:**
 
 ```bash
+python agent/graph.py
+```
+**Terminal 3 - main:**
+
+```bash
 python main.py
 ```
-
 ## Requirements
 
 - Python 3.9+
@@ -193,11 +197,17 @@ python server/web_server.py
 # 打开浏览器访问 http://127.0.0.1:8001
 ```
 
-**终端 2 - 启动采集 & Agent：**
+**终端 2 - 启动Agent：**
+
+```bash
+python agent/graph.py
+```
+**终端 3 - 启动采集 & main：**
 
 ```bash
 python main.py
 ```
+
 
 ## 系统要求
 
